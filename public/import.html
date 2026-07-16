@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import Data - Machhiana</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 1.8rem; margin-bottom: .5rem; }
+    p { color: #94a3b8; margin-bottom: 2rem; }
+    .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+    label { display: block; font-size: .9rem; font-weight: 600; margin-bottom: .5rem; color: #cbd5e1; }
+    select, input[type=file] { width: 100%; padding: .7rem; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: .95rem; margin-bottom: 1rem; }
+    .btn { padding: .7rem 1.5rem; border: none; border-radius: 8px; font-size: .95rem; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-success { background: #22c55e; color: white; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    #result { margin-top: 1rem; padding: 1rem; border-radius: 8px; display: none; }
+    .success { background: #166534; color: #bbf7d0; display: block !important; }
+    .error { background: #7f1d1d; color: #fecaca; display: block !important; }
+    .info { background: #1e3a5f; color: #93c5fd; display: block !important; }
+    pre { font-size: .85rem; overflow-x: auto; margin-top: .5rem; color: #94a3b8; }
+    .counts { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: 1rem; }
+    .count-box { background: #0f172a; border-radius: 8px; padding: .8rem; text-align: center; }
+    .count-box .num { font-size: 1.4rem; font-weight: 700; color: #3b82f6; }
+    .count-box .lbl { font-size: .8rem; color: #94a3b8; }
+    .nav { margin-bottom: 1.5rem; }
+    .nav a { color: #3b82f6; text-decoration: none; font-size: .9rem; }
+    .nav a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav"><a href="/">&larr; Home</a> &middot; <a href="/machh">Portal</a></div>
+    <h1>Import Data</h1>
+    <p>Upload CSV files to import data into the database.</p>
+
+    <div class="card">
+      <label>Table</label>
+      <select id="tableSelect">
+        <option value="clients">Clients</option>
+        <option value="jobs">Jobs</option>
+        <option value="visas">Visas</option>
+        <option value="accounts">Accounts</option>
+        <option value="register_data">Register</option>
+        <option value="users">Users</option>
+      </select>
+      <label>CSV File</label>
+      <input type="file" id="csvFile" accept=".csv">
+      <button class="btn btn-primary" onclick="importCSV()" id="importBtn">Import</button>
+      <div id="result"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:1.1rem;margin-bottom:1rem;">Quick Import All</h2>
+      <p style="font-size:.9rem;color:#94a3b8;margin-bottom:1rem;">Import all sample data at once (10 clients, 9 jobs, 10 visas, etc.)</p>
+      <button class="btn btn-success" onclick="seedAll()">Import Sample Data</button>
+      <div id="seedResult"></div>
+    </div>
+
+    <div class="card" id="statusCard">
+      <h2 style="font-size:1.1rem;margin-bottom:1rem;">Current Data Counts</h2>
+      <div class="counts" id="counts"></div>
+      <button class="btn btn-info" onclick="loadCounts()" style="background:#6366f1;color:white;padding:.5rem 1rem;">Refresh</button>
+    </div>
+  </div>
+
+  <script>
+    async function loadCounts() {
+      const tables = ['clients','jobs','visas','accounts','register_data','users'];
+      const names = ['Clients','Jobs','Visas','Accounts','Register','Users'];
+      const div = document.getElementById('counts');
+      div.innerHTML = 'Loading...';
+      try {
+        const results = await Promise.all(tables.map(t => fetch('/api/' + t).then(r => r.json()).then(d => Array.isArray(d) ? d.length : 0).catch(() => '?')));
+        div.innerHTML = results.map((c, i) => `<div class="count-box"><div class="num">${c}</div><div class="lbl">${names[i]}</div></div>`).join('');
+      } catch(e) {
+        div.innerHTML = '<p style="color:#f87171">Could not load counts</p>';
+      }
+    }
+    loadCounts();
+
+    function parseCSV(text) {
+      const lines = text.trim().split('\n');
+      if (!lines.length) return [];
+      const headers = parseLine(lines[0]);
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const vals = parseLine(lines[i]);
+        if (vals.length < 2) continue;
+        const row = {};
+        headers.forEach((h, idx) => { row[h.trim()] = (vals[idx]||'').trim(); });
+        rows.push(row);
+      }
+      return rows;
+    }
+
+    function parseLine(line) {
+      const result = [];
+      let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] === '"') { inQ = !inQ; continue; }
+        if (line[i] === ',' && !inQ) { result.push(cur); cur = ''; continue; }
+        cur += line[i];
+      }
+      result.push(cur);
+      return result;
+    }
+
+    async function importCSV() {
+      const file = document.getElementById('csvFile').files[0];
+      if (!file) { showResult('Select a CSV file', 'error'); return; }
+      const table = document.getElementById('tableSelect').value;
+      const btn = document.getElementById('importBtn');
+      btn.disabled = true;
+      btn.textContent = 'Importing...';
+      try {
+        const text = await file.text();
+        const rows = parseCSV(text);
+        if (!rows.length) { showResult('No data found in CSV', 'error'); btn.disabled = false; btn.textContent = 'Import'; return; }
+        const res = await fetch('/api/import/' + table, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows })
+        });
+        const data = await res.json();
+        if (data.success) showResult(`Imported ${data.imported} / ${data.total} rows`, data.imported > 0 ? 'success' : 'error');
+        else showResult('Error: ' + (data.error || 'unknown'), 'error');
+        loadCounts();
+      } catch(e) { showResult('Error: ' + e.message, 'error'); }
+      btn.disabled = false;
+      btn.textContent = 'Import';
+    }
+
+    async function seedAll() {
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = 'Importing...';
+      document.getElementById('seedResult').className = 'info';
+      document.getElementById('seedResult').style.display = 'block';
+      document.getElementById('seedResult').textContent = 'Importing sample data...';
+      try {
+        const res = await fetch('/api/seed', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('seedResult').className = 'success';
+          document.getElementById('seedResult').textContent = `Imported: ${data.counts.clients} clients, ${data.counts.jobs} jobs, ${data.counts.visas} visas, ${data.counts.accounts} accounts, ${data.counts.register} register`;
+        } else {
+          document.getElementById('seedResult').className = 'error';
+          document.getElementById('seedResult').textContent = 'Error: ' + (data.error || 'unknown');
+        }
+        loadCounts();
+      } catch(e) {
+        document.getElementById('seedResult').className = 'error';
+        document.getElementById('seedResult').textContent = 'Error: ' + e.message;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Import Sample Data';
+    }
+
+    function showResult(msg, type) {
+      const div = document.getElementById('result');
+      div.className = type;
+      div.style.display = 'block';
+      div.textContent = msg;
+    }
+  </script>
+</body>
+</html>

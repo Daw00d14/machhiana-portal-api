@@ -79,6 +79,30 @@ app.get('/api/files/:id/:name', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ---- CSV Import endpoint ----
+app.post('/api/import/:table', async (req, res) => {
+  try {
+    const { table } = req.params;
+    const { rows } = req.body;
+    if (!rows || !rows.length) return res.status(400).json({ error: 'No rows provided' });
+    const allowed = ['clients','jobs','visas','accounts','register_data','users'];
+    if (!allowed.includes(table)) return res.status(400).json({ error: 'Invalid table' });
+    const { query } = require('../lib/db');
+    let count = 0;
+    for (const row of rows) {
+      const keys = Object.keys(row);
+      const vals = Object.values(row);
+      const cols = keys.join(',');
+      const ph = keys.map((_, i) => `$${i + 1}`).join(',');
+      try {
+        await query(`INSERT INTO ${table} (${cols}) VALUES (${ph})`, vals);
+        count++;
+      } catch (e) { /* skip bad rows */ }
+    }
+    res.json({ success: true, imported: count, total: rows.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ---- Seed endpoint ----
 const seedData = require('../lib/seed-data');
 app.post('/api/seed', async (req, res) => {
