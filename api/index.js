@@ -80,6 +80,7 @@ app.get('/api/files/:id/:name', async (req, res) => {
 });
 
 // Serve frontend
+app.use('/machh', express.static(path.join(__dirname, '..', 'public', 'machh')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });

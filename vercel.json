@@ -6,6 +6,8 @@
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/index.js" },
+    { "src": "/machh", "dest": "/public/machh/index.html" },
+    { "src": "/machh/(.*)", "dest": "/public/machh/$1" },
     { "src": "/(.*)", "dest": "/public/$1" }
   ]
 }
