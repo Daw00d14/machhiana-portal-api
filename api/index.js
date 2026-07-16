@@ -79,6 +79,45 @@ app.get('/api/files/:id/:name', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ---- Seed endpoint ----
+const seedData = require('../lib/seed-data');
+app.post('/api/seed', async (req, res) => {
+  try {
+    const { query } = require('../lib/db');
+    for (const table of ['clients','jobs','visas','accounts','register_data','files']) {
+      await query(`DELETE FROM ${table}`);
+    }
+    for (const item of seedData.clients) await query(
+      `INSERT INTO clients (sno,principal,through,city,country) VALUES ($1,$2,$3,$4,$5)`,
+      [item.sno, item.principal, item.through, item.city, item.country]
+    );
+    for (const item of seedData.jobs) await query(
+      `INSERT INTO jobs (title,visa_no,issue_date,principal_id,vacancies,description,permission_no,permission_date,country,status,type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [item.title, item.visaNo, item.issue_date, item.principal_id, item.vacancies, item.description, item.permission_no, item.permission_date, item.country, item.status, item.type]
+    );
+    for (const item of seedData.visas) {
+      const keys = Object.keys(item);
+      const vals = Object.values(item);
+      const cols = keys.join(',');
+      const ph = keys.map((_,i) => `$${i+1}`).join(',');
+      await query(`INSERT INTO visas (${cols}) VALUES (${ph})`, vals);
+    }
+    for (const item of seedData.accounts) await query(
+      `INSERT INTO accounts (sno,name,amount,date,description,category) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [item.sno, item.name, item.amount, item.date, item.description, item.category]
+    );
+    for (const item of seedData.register) await query(
+      `INSERT INTO register_data (sno,name,category,description) VALUES ($1,$2,$3,$4)`,
+      [item.sno, item.name, item.category, item.description]
+    );
+    res.json({ success: true, counts: {
+      clients: seedData.clients.length, jobs: seedData.jobs.length,
+      visas: seedData.visas.length, accounts: seedData.accounts.length,
+      register: seedData.register.length
+    }});
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Serve frontend
 app.use('/machh', express.static(path.join(__dirname, '..', 'public', 'machh')));
 app.get('*', (req, res) => {
