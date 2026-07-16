@@ -1,13 +1,1 @@
-{
-  "version": 2,
-  "builds": [
-    { "src": "api/index.js", "use": "@vercel/node" },
-    { "src": "package.json", "use": "@vercel/static", "config": { "zeroConfig": true } }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/index.js" },
-    { "src": "/machh/(.*)", "dest": "/machh/$1" },
-    { "src": "/machh", "dest": "/machh/index.html" },
-    { "src": "/(.*)", "dest": "/$1" }
-  ]
-}
+{"version":2}
