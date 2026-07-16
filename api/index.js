@@ -143,9 +143,9 @@ app.post('/api/seed', async (req, res) => {
 });
 
 // Serve frontend
-app.use('/machh', express.static(path.join(__dirname, '..', 'public', 'machh')));
+app.use('/machh', express.static(path.join(__dirname, '..', 'machh')));
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
 // Init DB on first load

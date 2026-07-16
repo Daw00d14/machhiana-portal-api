@@ -1,3 +1,5 @@
 node_modules/
-data.db
 *.db
+*.dump
+machhiana-dump.sql
+.env
