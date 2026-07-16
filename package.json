@@ -1,6 +1,7 @@
 {
   "name": "machhiana-portal-api",
   "version": "1.0.0",
+  "main": "api/index.js",
   "description": "Machhiana Visa Portal - Node.js + PostgreSQL backend",
   "scripts": {
     "start": "node server.js",
