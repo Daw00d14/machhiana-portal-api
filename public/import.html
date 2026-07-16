@@ -49,8 +49,8 @@
         <option value="register_data">Register</option>
         <option value="users">Users</option>
       </select>
-      <label>CSV File</label>
-      <input type="file" id="csvFile" accept=".csv">
+      <label>File (.csv, .xls, .xlsx)</label>
+      <input type="file" id="csvFile" accept=".csv,.xls,.xlsx">
       <button class="btn btn-primary" onclick="importCSV()" id="importBtn">Import</button>
       <div id="result"></div>
     </div>
@@ -69,6 +69,7 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script>
     async function loadCounts() {
       const tables = ['clients','jobs','visas','accounts','register_data','users'];
@@ -113,22 +114,40 @@
 
     async function importCSV() {
       const file = document.getElementById('csvFile').files[0];
-      if (!file) { showResult('Select a CSV file', 'error'); return; }
+      if (!file) { showResult('Select a file', 'error'); return; }
       const table = document.getElementById('tableSelect').value;
       const btn = document.getElementById('importBtn');
       btn.disabled = true;
       btn.textContent = 'Importing...';
       try {
-        const text = await file.text();
-        const rows = parseCSV(text);
-        if (!rows.length) { showResult('No data found in CSV', 'error'); btn.disabled = false; btn.textContent = 'Import'; return; }
-        const res = await fetch('/api/import/' + table, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows })
-        });
-        const data = await res.json();
-        if (data.success) showResult(`Imported ${data.imported} / ${data.total} rows`, data.imported > 0 ? 'success' : 'error');
-        else showResult('Error: ' + (data.error || 'unknown'), 'error');
+        const ext = file.name.split('.').pop().toLowerCase();
+        let rows;
+        if (ext === 'csv') {
+          rows = parseCSV(await file.text());
+        } else {
+          const data = await file.arrayBuffer();
+          const wb = XLSX.read(data, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          rows = json.map(r => {
+            const o = {};
+            Object.keys(r).forEach(k => { o[k.trim()] = String(r[k]).trim(); });
+            return o;
+          });
+        }
+        if (!rows.length) { showResult('No data found in file', 'error'); btn.disabled = false; btn.textContent = 'Import'; return; }
+        // Send in batches of 100
+        let total = 0;
+        for (let i = 0; i < rows.length; i += 100) {
+          const batch = rows.slice(i, i + 100);
+          const res = await fetch('/api/import/' + table, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: batch })
+          });
+          const data = await res.json();
+          if (data.success) total += data.imported;
+        }
+        showResult(`Imported ${total} / ${rows.length} rows`, total > 0 ? 'success' : 'error');
         loadCounts();
       } catch(e) { showResult('Error: ' + e.message, 'error'); }
       btn.disabled = false;
@@ -136,7 +155,7 @@
     }
 
     async function seedAll() {
-      const btn = event.target;
+      const btn = document.querySelector('.btn-success');
       btn.disabled = true;
       btn.textContent = 'Importing...';
       document.getElementById('seedResult').className = 'info';
